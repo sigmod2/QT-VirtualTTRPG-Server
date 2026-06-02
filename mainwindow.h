@@ -11,6 +11,10 @@
 #include <QtGui>
 #include <QtCore>
 #include <QtWidgets>
+#include "user_manager.h"
+#include "room_manager.h"
+
+
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -39,10 +43,14 @@ private slots:
 
 private:
     void Send_File(QTcpSocket *socket, QString filename);
+    void sendToSocket(QTcpSocket *socket, const QString &message);
 
-private:
     Ui::MainWindow *ui;
     QTcpServer *TCP_Server;
     QList<QTcpSocket*> Client_List;
+
+    UserManager *m_userManager;
+    RoomManager             *m_roomManager;                        // NOWE
+    QMap<QTcpSocket*, QString> m_socketToUsername;
 };
 #endif // MAINWINDOW_H

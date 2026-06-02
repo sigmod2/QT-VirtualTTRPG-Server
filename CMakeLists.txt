@@ -11,6 +11,8 @@ qt_add_executable(WannaBeServer
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
+    user_manager.h user_manager.cpp
+    room_manager.h room_manager.cpp
 )
 
 target_link_libraries(WannaBeServer
