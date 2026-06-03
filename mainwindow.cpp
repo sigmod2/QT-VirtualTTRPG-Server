@@ -1,8 +1,8 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include <iostream>
 #include <cstdlib>
 #include <ctime>
+#include <iostream>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -13,17 +13,21 @@ MainWindow::MainWindow(QWidget *parent)
     TCP_Server = new QTcpServer(this); //init server object
 
     connect(TCP_Server, &QTcpServer::newConnection, this, &MainWindow::newConnection);
-    if (TCP_Server->listen(QHostAddress::AnyIPv4, 43000)) //Tcp server will listenon 43000 port number and my system Ip
+    if (TCP_Server->listen(QHostAddress::AnyIPv4,
+                           43000)) //Tcp server will listenon 43000 port number and my system Ip
     {
         ui->statusbar->showMessage("TCP Server Started");
-    }
-    else
-    {
+    } else {
         QMessageBox::information(this, "Qt With Ketan", "Server Start Failed somehow");
     }
 
-    m_userManager = new UserManager(QCoreApplication::applicationDirPath() + "/users.json"); //pointer na UserManagera
+    m_userManager = new UserManager(QCoreApplication::applicationDirPath()
+                                    + "/users.json"); //pointer na UserManagera
     m_roomManager = new RoomManager(QCoreApplication::applicationDirPath() + "/rooms.json");
+
+    setWindowTitle("Server behind Virtual TTRPG manager");
+
+    setWindowIcon(QIcon("C:/Users/konra/Dokumenty/QT-VirtualTTRPG-Server/manager_icon.png"));
 }
 
 MainWindow::~MainWindow()
@@ -31,11 +35,10 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-
 void MainWindow::readSocket()
 {
- //code for recived file from client
-    QTcpSocket *socket = reinterpret_cast< QTcpSocket*>(sender());
+    //code for recived file from client
+    QTcpSocket *socket = reinterpret_cast<QTcpSocket *>(sender());
 
     QByteArray DataBuffer;
     QDataStream socketstream(socket);
@@ -44,9 +47,7 @@ void MainWindow::readSocket()
     socketstream.startTransaction();
     socketstream >> DataBuffer; // Get Data From Socket Or From Client Socket
 
-
-    if (socketstream.commitTransaction() == false)
-    {
+    if (socketstream.commitTransaction() == false) {
         return;
     }
 
@@ -54,10 +55,9 @@ void MainWindow::readSocket()
 
     QString HeaderData = DataBuffer.mid(0, 128); //Extract Header Data
 
-    if (HeaderData.startsWith("filename:"))
-    {
+    if (HeaderData.startsWith("filename:")) {
         QString Filename = HeaderData.split(",")[0].split(":")[1]; // Get FullFile Name
-        QString FileExt = Filename.split(".")[1]; //Get File Ext
+        QString FileExt = Filename.split(".")[1];                  //Get File Ext
         QString FileSize = HeaderData.split(",")[1].split(":")[1]; // Get File Size
 
         DataBuffer = DataBuffer.mid(128); // Now Get File Data Only
@@ -66,15 +66,11 @@ void MainWindow::readSocket()
 
         QFile File(SaveFilePath);
 
-        if (File.open(QIODevice::WriteOnly))
-        {
+        if (File.open(QIODevice::WriteOnly)) {
             File.write(DataBuffer);
             File.close();
-
         }
-    }
-    else if (HeaderData.startsWith("/login"))
-    {
+    } else if (HeaderData.startsWith("/login")) {
         QString login_attempt = QString::fromUtf8(DataBuffer);
         QStringList parts = login_attempt.trimmed().split(" ");
         if (parts.size() == 3) {
@@ -93,9 +89,7 @@ void MainWindow::readSocket()
                 sendToSocket(socket, "auth_fail");
             }
         }
-    }
-    else if (HeaderData.startsWith("/register"))
-    {
+    } else if (HeaderData.startsWith("/register")) {
         QString cmd = QString::fromUtf8(DataBuffer).trimmed();
         QStringList parts = cmd.split(" ");
         // Format: /register username password role
@@ -106,9 +100,7 @@ void MainWindow::readSocket()
             stream.setVersion(QDataStream::Qt_5_15);
             stream << response.toUtf8();
         }
-    }
-    else if (HeaderData.startsWith("/create_room"))
-    {
+    } else if (HeaderData.startsWith("/create_room")) {
         QString cmd = QString::fromUtf8(DataBuffer).trimmed();
         // Format: /create_room NazwaPokoyu System
         // Nazwa może mieć spacje więc bierzemy od 2 tokena do przedostatniego
@@ -119,22 +111,21 @@ void MainWindow::readSocket()
                 sendToSocket(socket, "error|Nie jesteś zalogowany");
                 return;
             }
-            QString system   = parts.last();             // ostatni token = system
+            QString system = parts.last(); // ostatni token = system
             QStringList nameParts = parts.mid(1, parts.size() - 2);
-            QString roomName = nameParts.join(" ");      // środek = nazwa
+            QString roomName = nameParts.join(" "); // środek = nazwa
 
             QString newId = m_roomManager->createRoom(roomName, gmUsername, system);
             sendToSocket(socket, "room_created|" + newId + "|" + roomName);
 
-            ui->textEdit_Messages->append("Room created: " + newId +
-                                          " by " + gmUsername);
+            ui->textEdit_Messages->append("Room created: " + newId + " by " + gmUsername);
         }
-    }
-    else if (HeaderData.startsWith("/join_room"))
-    {
+    } else if (HeaderData.startsWith("/join_room")) {
+
         QStringList parts = QString::fromUtf8(DataBuffer).trimmed().split(" ");
         if (parts.size() == 2) {
-            QString roomId   = parts[1];
+            QString roomId = parts[1];
+            m_socketToRoomId[socket] = roomId; //zeby faktycznie milo znacznie w jakim roomie jestes
             QString username = m_socketToUsername.value(socket, "");
 
             if (username.isEmpty()) {
@@ -148,145 +139,163 @@ void MainWindow::readSocket()
 
             m_roomManager->addPlayerToRoom(roomId, username);
             QJsonObject info = m_roomManager->getRoomInfo(roomId);
-            QString infoStr  = QString::fromUtf8(
-                QJsonDocument(info).toJson(QJsonDocument::Compact));
+            QString infoStr = QString::fromUtf8(QJsonDocument(info).toJson(QJsonDocument::Compact));
 
             sendToSocket(socket, "join_ok|" + infoStr);
         }
     }
 
-    else if (HeaderData.startsWith("/my_rooms"))
-    {
+    else if (HeaderData.startsWith("/my_rooms")) {
         QString username = m_socketToUsername.value(socket, "");
         if (username.isEmpty()) {
             sendToSocket(socket, "error|Nie jesteś zalogowany");
             return;
         }
         QJsonArray rooms = m_roomManager->getRoomsForUser(username);
-        QString roomsStr = QString::fromUtf8(
-            QJsonDocument(rooms).toJson(QJsonDocument::Compact));
+        QString roomsStr = QString::fromUtf8(QJsonDocument(rooms).toJson(QJsonDocument::Compact));
         sendToSocket(socket, "rooms_list|" + roomsStr);
+    }
+    else if (HeaderData.startsWith("/get_stats"))
+    {
+        QStringList parts = QString::fromUtf8(DataBuffer).trimmed().split(" ");
+        if (parts.size() == 2) {
+            QString roomId   = parts[1];
+            QString username = m_socketToUsername.value(socket, "");
+
+            QJsonObject room      = m_roomManager->getRoomInfo(roomId);
+            QJsonObject characters = room["characters"].toObject();
+            QJsonObject character  = characters[username].toObject();
+
+            QString charStr = QString::fromUtf8(
+                QJsonDocument(character).toJson(QJsonDocument::Compact));
+            sendToSocket(socket, "stats_data|" + charStr);
+        }
+    }
+    else if (HeaderData.startsWith("/save_stats"))
+    {
+        QString cmd     = QString::fromUtf8(DataBuffer).trimmed();
+        int firstSpace  = cmd.indexOf(' ');
+        int secondSpace = cmd.indexOf(' ', firstSpace + 1);
+        QString roomId  = cmd.mid(firstSpace + 1, secondSpace - firstSpace - 1);
+        QString charJson = cmd.mid(secondSpace + 1);
+        QString username = m_socketToUsername.value(socket, "");
+
+        QJsonObject character = QJsonDocument::fromJson(charJson.toUtf8()).object();
+        m_roomManager->saveCharacter(roomId, username, character);
+
+        sendToSocket(socket, "stats_saved");
     }
     else if (HeaderData.startsWith("/")) //prawidiwe komendy
     {
         QString command = QString::fromUtf8(DataBuffer);
-        if (command.startsWith("/roll"))
-        {
+        if (command.startsWith("/roll")) {
             QStringList segmenty = command.split(" ");
-            if (segmenty.size() != 2 || !segmenty[1].contains("d")){
-                ui->textEdit_Messages->append("Error /roll ");}
+            if (segmenty.size() != 2 || !segmenty[1].contains("d")) {
+                ui->textEdit_Messages->append("Error /roll ");
+            }
             QStringList rzuty = segmenty[1].split("d");
             int ile = rzuty[0].toInt();
             int jakich = rzuty[1].toInt();
             int wynik = 0;
             srand(time(NULL));
-            for (int i=0; i<ile; i++){
-                wynik+=(1 + (rand() % jakich));
+            for (int i = 0; i < ile; i++) {
+                wynik += (1 + (rand() % jakich));
             }
 
             QString Message_For_Client = "Wynik rzutu to: " + QString::number(wynik);
-            foreach (QTcpSocket *sockettemp, Client_List)
-            {
+            foreach (QTcpSocket *sockettemp, Client_List) {
                 QDataStream stream(sockettemp);
                 stream.setVersion(QDataStream::Qt_5_15);
                 stream << Message_For_Client.toUtf8();
             }
-        ui->textEdit_Messages->append("Wykonano /roll ");
+            ui->textEdit_Messages->append("Wykonano /roll ");
 
-        }
-        else if (command.startsWith("/stats"))
-        {
+        } else if (command.startsWith("/stats")) {
+            QString username = m_socketToUsername.value(socket, "");
+            QJsonArray rooms = m_roomManager->getRoomsForUser(username);
+            QJsonObject room = rooms[0].toObject();
+            QJsonObject characters = room["characters"].toObject();
+            QJsonObject character = characters[username].toObject();
+            QString charStr = QString::fromUtf8(QJsonDocument(character).toJson(QJsonDocument::Compact));
+            sendToSocket(socket, "your_stats|" + charStr);
+        } else if (command.startsWith("/wounds")) {
+            QString username = m_socketToUsername.value(socket, "");
+            QString roomId   = m_socketToRoomId.value(socket, "");
 
-        }
-        else if (command.startsWith("/wounds"))
-        {
+            QJsonObject room = m_roomManager->getRoomInfo(roomId);
+            QJsonObject characters = room["characters"].toObject();
+            QJsonObject character = characters[username].toObject();
 
-        }
-        else if (command.startsWith("/inv"))
-        {
+            QJsonObject statsSecondary = character["stats_secondary"].toObject();
+            QJsonObject wounds = statsSecondary["W"].toObject();
+            int currentWounds = wounds["current"].toInt();
 
-        }
-        else if (command.startsWith("/add"))
-        {
+            sendToSocket(socket, username + " Wounds: " + QString::number(currentWounds));
 
-        }
-        else if (command.startsWith("/remove"))
-        {
 
-        }
-        else if (command.startsWith("/money"))
+        } else if (command.startsWith("/inv")) {
+        } else if (command.startsWith("/add")) {
+        } else if (command.startsWith("/remove")) {
+        } else if (command.startsWith("/money")) {
+        } else if (command.startsWith("/write")) //to opcjonalnie, bo będzie trudne
         {
-
-        }
-        else if (command.startsWith("/write")) //to opcjonalnie, bo będzie trudne
+        } else if (command.startsWith("/me")) {
+        } else if (command.startsWith("/help")) {
+            sendToSocket(socket, "Oto dostepne komendy: /roll [ile]d[jakich] /stats /wounds /help");
+        } else if (command.startsWith("/attack")) //jesli znajde czas
         {
-
-        }
-        else if (command.startsWith("/me"))
-        {
-
-        }
-        else if (command.startsWith("/help"))
-        {
-            //test
-        }
-        else if (command.startsWith("/attack")) //jesli znajde czas
-        {
-
-        }
-        else
-        {
-
+        } else {
             QString Information = "Command not found - please use /help";
 
-            foreach (QTcpSocket *sockettemp, Client_List)
-            {
+            foreach (QTcpSocket *sockettemp, Client_List) {
                 QDataStream stream(sockettemp);
                 stream.setVersion(QDataStream::Qt_5_15);
                 stream << Information.toUtf8();
             }
         }
-    }
-    else
-    {
-        QString message = QString::fromUtf8(DataBuffer);
-        ui->textEdit_Messages->append("Klient " + QString::number(socket->socketDescriptor()) + ": " + message);
+    } else {
+        QString username = m_socketToUsername.value(socket,
+                                                    "Przekazywanie od: " + QString::number(socket->socketDescriptor()));
+        QString message  = QString::fromUtf8(DataBuffer);
+        QString toSend   = username + ": " + message;
+
+        ui->textEdit_Messages->append(toSend);
+
+        // Broadcast do wszystkich
+        foreach (QTcpSocket *s, Client_List)
+            sendToSocket(s, toSend);
     }
 }
 
 void MainWindow::discardSocket()
 {
-    QTcpSocket *socket = reinterpret_cast<QTcpSocket*>(sender());
+    QTcpSocket *socket = reinterpret_cast<QTcpSocket *>(sender());
 
     m_socketToUsername.remove(socket);
 
     int idx = Client_List.indexOf(socket);
-    if (idx > -1) Client_List.removeAt(idx);
+    if (idx > -1)
+        Client_List.removeAt(idx);
 
-    ui->textEdit_Messages->append("Client Disconnected: " + QString::number(socket->socketDescriptor()));
+    ui->textEdit_Messages->append("Client Disconnected: "
+                                  + QString::number(socket->socketDescriptor()));
     ui->comboBox_Client_List->clear();
-    foreach (QTcpSocket *s, Client_List)
-    {
+    foreach (QTcpSocket *s, Client_List) {
         ui->comboBox_Client_List->addItem(QString::number(s->socketDescriptor()));
     }
 
     socket->deleteLater();
+    m_socketToRoomId.remove(socket);
 }
-
-
 
 // Constantly checking for incomming connections, until that accours
 void MainWindow::newConnection()
 {
-    while (TCP_Server->hasPendingConnections())
-    {
+    while (TCP_Server->hasPendingConnections()) {
         // Adding new TCP Client connection
         AddToSocketList(TCP_Server->nextPendingConnection());
     }
 }
-
-
-
 
 //This Function Is uded for storing all new client connections and assigning it's signal and slot
 void MainWindow::AddToSocketList(QTcpSocket *socket)
@@ -295,7 +304,8 @@ void MainWindow::AddToSocketList(QTcpSocket *socket)
     connect(socket, &QTcpSocket::readyRead, this, &MainWindow::readSocket);
     connect(socket, &QTcpSocket::disconnected, this, &MainWindow::discardSocket);
 
-    ui->textEdit_Messages->append("Client Is connected with Server : Socket ID : " + QString::number(socket->socketDescriptor()));
+    ui->textEdit_Messages->append("Client Is connected with Server : Socket ID : "
+                                  + QString::number(socket->socketDescriptor()));
 
     ui->comboBox_Client_List->addItem(QString::number(socket->socketDescriptor()));
 
@@ -303,16 +313,12 @@ void MainWindow::AddToSocketList(QTcpSocket *socket)
     //ui->textEdit_Client_Messages->append(Client);
 }
 
-
 void MainWindow::Send_File(QTcpSocket *socket, QString filename)
 {
-    if (socket)
-    {
-        if (socket->isOpen())
-        {
+    if (socket) {
+        if (socket->isOpen()) {
             QFile filedata(filename);
-            if (filedata.open(QIODevice::ReadOnly))
-            {
+            if (filedata.open(QIODevice::ReadOnly)) {
                 QFileInfo fileinfo(filedata);
                 QString FileNameWithExt(fileinfo.fileName());
 
@@ -321,7 +327,8 @@ void MainWindow::Send_File(QTcpSocket *socket, QString filename)
 
                 //This code use file name also with file data
                 QByteArray header;
-                header.prepend("filename:" + FileNameWithExt.toUtf8() + ",filesize:" + QString::number(filedata.size()).toUtf8());
+                header.prepend("filename:" + FileNameWithExt.toUtf8()
+                               + ",filesize:" + QString::number(filedata.size()).toUtf8());
                 header.resize(128);
 
                 //Now Let's Add FileData
@@ -332,49 +339,37 @@ void MainWindow::Send_File(QTcpSocket *socket, QString filename)
                 socketstream << ByteFileData;
 
                 //I strictly need to further study this code
-            }
-            else
-            {
+            } else {
                 qDebug() << "File Not Open";
             }
-        }
-        else
-        {
+        } else {
             qDebug() << "Client Socket Not Open";
         }
-    }
-    else
-    {
+    } else {
         qDebug() << "Client Socket is invalid";
     }
 }
-
 
 void MainWindow::on_pushButton_Send_File_clicked()
 {
     //Let's Send File To The Client
 
-
     //Browse File
-    QString FilePath= QFileDialog::getOpenFileName(this, "Select File ", QCoreApplication::applicationDirPath(), "File (*.jpg *.txt *.png *.bmp)");
-
+    QString FilePath = QFileDialog::getOpenFileName(this,
+                                                    "Select File ",
+                                                    QCoreApplication::applicationDirPath(),
+                                                    "File (*.jpg *.txt *.png *.bmp)");
 
     // Send File to All Connected Clients
-    if(ui->comboBox_Transfer_Type->currentText() == "Broadcast")
-    {
-        foreach (QTcpSocket *sockettemp, Client_List)
-        {
+    if (ui->comboBox_Transfer_Type->currentText() == "Broadcast") {
+        foreach (QTcpSocket *sockettemp, Client_List) {
             Send_File(sockettemp, FilePath);
         }
-    }
-    else if(ui->comboBox_Transfer_Type->currentText() == "receiver")
-    {
+    } else if (ui->comboBox_Transfer_Type->currentText() == "receiver") {
         // Send file only to the selected client
         QString receiverid = ui->comboBox_Client_List->currentText();
-        foreach (QTcpSocket *sockettemp, Client_List)
-        {
-            if (sockettemp->socketDescriptor() == receiverid.toLongLong())
-            {
+        foreach (QTcpSocket *sockettemp, Client_List) {
+            if (sockettemp->socketDescriptor() == receiverid.toLongLong()) {
                 Send_File(sockettemp, FilePath);
             }
         }
@@ -386,26 +381,19 @@ void MainWindow::on_pushButton_Send_Text_clicked()
     QString Message_For_Client = ui->lineEdit_Message->text();
     QString ReceiveType = ui->comboBox_Transfer_Type->currentText();
 
-
     //sending to all the clients
-    if(ReceiveType == "Broadcast")
-    {
-        foreach (QTcpSocket *sockettemp, Client_List)
-        {
+    if (ReceiveType == "Broadcast") {
+        foreach (QTcpSocket *sockettemp, Client_List) {
             QDataStream stream(sockettemp);
             stream.setVersion(QDataStream::Qt_5_15);
             stream << Message_For_Client.toUtf8();
         }
-    }
-    else if(ReceiveType == "receiver")
-    {
+    } else if (ReceiveType == "receiver") {
         // Send  only to the selected client
         QString receiverid = ui->comboBox_Client_List->currentText();
 
-        foreach (QTcpSocket *sockettemp, Client_List)
-        {
-            if (sockettemp->socketDescriptor() == receiverid.toLongLong())
-            {
+        foreach (QTcpSocket *sockettemp, Client_List) {
+            if (sockettemp->socketDescriptor() == receiverid.toLongLong()) {
                 QDataStream stream(sockettemp);
                 stream.setVersion(QDataStream::Qt_5_15);
                 stream << Message_For_Client.toUtf8();

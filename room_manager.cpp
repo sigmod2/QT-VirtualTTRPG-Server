@@ -1,8 +1,9 @@
 #include "room_manager.h"
-#include <QRandomGenerator>
 #include <QDateTime>
+#include <QRandomGenerator>
 
-RoomManager::RoomManager(const QString &filePath) : m_filePath(filePath)
+RoomManager::RoomManager(const QString &filePath)
+    : m_filePath(filePath)
 {
     // Jeśli plik nie istnieje, stwórz pusty
     QFile file(m_filePath);
@@ -18,7 +19,8 @@ RoomManager::RoomManager(const QString &filePath) : m_filePath(filePath)
 QJsonArray RoomManager::loadRooms()
 {
     QFile file(m_filePath);
-    if (!file.open(QIODevice::ReadOnly)) return QJsonArray();
+    if (!file.open(QIODevice::ReadOnly))
+        return QJsonArray();
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     return doc.object()["rooms"].toArray();
 }
@@ -26,27 +28,27 @@ QJsonArray RoomManager::loadRooms()
 void RoomManager::saveRooms(const QJsonArray &rooms)
 {
     QFile file(m_filePath);
-    if (!file.open(QIODevice::WriteOnly)) return;
+    if (!file.open(QIODevice::WriteOnly))
+        return;
     QJsonObject root;
     root["rooms"] = rooms;
     file.write(QJsonDocument(root).toJson());
 }
 
 // -------------------------------------------------------
-// Prywatne: generowanie unikalnego ID
+// Prywatne
 // -------------------------------------------------------
 
 QString RoomManager::generateRoomId()
 {
-    const QString chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // bez mylących 0/O/1/I
+    const QString chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     QString id;
     for (int i = 0; i < 6; ++i) {
         id += chars[QRandomGenerator::global()->bounded(chars.size())];
     }
 
-    // Upewnij się że ID jest unikalne
     if (validateRoomId(id)) {
-        return generateRoomId(); // rekurencja, kolizja bardzo mało prawdopodobna
+        return generateRoomId();
     }
     return id;
 }
@@ -64,25 +66,26 @@ bool RoomManager::validateRoomId(const QString &identifier)
     return false;
 }
 
-QString RoomManager::createRoom(const QString &roomName, const QString &gmUsername, const QString &system)
+QString RoomManager::createRoom(const QString &roomName,
+                                const QString &gmUsername,
+                                const QString &system)
 {
     QJsonArray rooms = loadRooms();
 
     QString newId = generateRoomId();
 
     QJsonObject room;
-    room["id"]         = newId;
-    room["name"]       = roomName;
-    room["gm"]         = gmUsername;
-    room["system"]     = system;
+    room["id"] = newId;
+    room["name"] = roomName;
+    room["gm"] = gmUsername;
+    room["system"] = system;
     room["created_at"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    room["players"]    = QJsonArray();   // na razie pusty
-    room["characters"] = QJsonObject();  // klucz: username → dane postaci
-
+    room["players"] = QJsonArray();
+    room["characters"] = QJsonObject();
     rooms.append(room);
     saveRooms(rooms);
 
-    return newId; // serwer odeśle ten ID do GM-a
+    return newId;
 }
 
 bool RoomManager::addPlayerToRoom(const QString &identifier, const QString &username)
@@ -92,12 +95,11 @@ bool RoomManager::addPlayerToRoom(const QString &identifier, const QString &user
     for (int i = 0; i < rooms.size(); ++i) {
         QJsonObject room = rooms[i].toObject();
         if (room["id"].toString() == identifier) {
-
             QJsonArray players = room["players"].toArray();
 
-            // Sprawdź czy już jest w roomie
             for (const QJsonValue &p : players) {
-                if (p.toString() == username) return true; // już jest, ok
+                if (p.toString() == username)
+                    return true;
             }
 
             players.append(username);
@@ -107,7 +109,7 @@ bool RoomManager::addPlayerToRoom(const QString &identifier, const QString &user
             return true;
         }
     }
-    return false; // nie znaleziono roomu
+    return false;
 }
 
 QJsonObject RoomManager::getRoomInfo(const QString &identifier)
@@ -117,7 +119,7 @@ QJsonObject RoomManager::getRoomInfo(const QString &identifier)
         if (room["id"].toString() == identifier)
             return room;
     }
-    return QJsonObject(); // pusty jeśli nie znaleziono
+    return QJsonObject();
 }
 
 QJsonArray RoomManager::getRoomsForUser(const QString &username)
@@ -126,13 +128,11 @@ QJsonArray RoomManager::getRoomsForUser(const QString &username)
     for (const QJsonValue &val : loadRooms()) {
         QJsonObject room = val.toObject();
 
-        // Dodaj jeśli jest GM-em
         if (room["gm"].toString() == username) {
             result.append(room);
             continue;
         }
 
-        // Dodaj jeśli jest graczem
         QJsonArray players = room["players"].toArray();
         for (const QJsonValue &p : players) {
             if (p.toString() == username) {
@@ -142,4 +142,22 @@ QJsonArray RoomManager::getRoomsForUser(const QString &username)
         }
     }
     return result;
+}
+
+void RoomManager::saveCharacter(const QString &roomId,
+                                const QString &username,
+                                const QJsonObject &character)
+{
+    QJsonArray rooms = loadRooms();
+    for (int i = 0; i < rooms.size(); ++i) {
+        QJsonObject room = rooms[i].toObject();
+        if (room["id"].toString() == roomId) {
+            QJsonObject characters = room["characters"].toObject();
+            characters[username]   = character;
+            room["characters"]     = characters;
+            rooms[i]               = room;
+            saveRooms(rooms);
+            return;
+        }
+    }
 }

@@ -1,7 +1,8 @@
 #include "user_manager.h"
 
-UserManager::UserManager(const  QString &filePath) :  m_filePath(filePath) {
-
+UserManager::UserManager(const QString &filePath)
+    : m_filePath(filePath)
+{
     // jeżeli nie istnieje to dodaj
     QFile file(m_filePath);
     if (!file.exists()) {
@@ -9,35 +10,37 @@ UserManager::UserManager(const  QString &filePath) :  m_filePath(filePath) {
     }
 }
 
-QJsonArray UserManager::loadUsers() {
+QJsonArray UserManager::loadUsers()
+{
     QFile file(m_filePath);
-    if (!file.open(QIODevice::ReadOnly)) return QJsonArray();
+    if (!file.open(QIODevice::ReadOnly))
+        return QJsonArray();
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     return doc.object()["users"].toArray();
 }
 
-void UserManager::saveUsers(const QJsonArray &users) {
+void UserManager::saveUsers(const QJsonArray &users)
+{
     QFile file(m_filePath);
-    if (!file.open(QIODevice::WriteOnly)) return;
+    if (!file.open(QIODevice::WriteOnly))
+        return;
     QJsonObject root;
     root["users"] = users;
     file.write(QJsonDocument(root).toJson());
 }
 
-bool UserManager::validateUser(const QString &username, const QString &password) {
+bool UserManager::validateUser(const QString &username, const QString &password)
+{
     for (const QJsonValue &val : loadUsers()) {
         QJsonObject user = val.toObject();
-        if (user["username"].toString() == username &&
-            user["password"].toString() == password) {
+        if (user["username"].toString() == username && user["password"].toString() == password) {
             return true;
         }
     }
     return false;
 }
 
-bool UserManager::registerUser(const QString &username,
-                               const QString &password,
-                               const QString &role)
+bool UserManager::registerUser(const QString &username, const QString &password, const QString &role)
 {
     QJsonArray users = loadUsers();
 
@@ -50,7 +53,7 @@ bool UserManager::registerUser(const QString &username,
     QJsonObject newUser;
     newUser["username"] = username;
     newUser["password"] = password;
-    newUser["role"]     = role;
+    newUser["role"] = role;
     users.append(newUser);
     saveUsers(users);
     return true;

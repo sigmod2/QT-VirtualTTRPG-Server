@@ -1,20 +1,18 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QByteArray>
+#include <QList>
 #include <QMainWindow>
+#include <QMessageBox>
+#include <QString>
+#include <QtCore>
+#include <QtGui>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
-#include <QList>
-#include <QByteArray>
-#include <QString>
-#include <QMessageBox>
-#include <QtGui>
-#include <QtCore>
 #include <QtWidgets>
-#include "user_manager.h"
 #include "room_manager.h"
-
-
+#include "user_manager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -29,6 +27,7 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
+    QMap<QTcpSocket*, QString> m_socketToRoomId;
 
 private slots:
     void readSocket();
@@ -47,10 +46,10 @@ private:
 
     Ui::MainWindow *ui;
     QTcpServer *TCP_Server;
-    QList<QTcpSocket*> Client_List;
+    QList<QTcpSocket *> Client_List;
 
     UserManager *m_userManager;
-    RoomManager             *m_roomManager;                        // NOWE
-    QMap<QTcpSocket*, QString> m_socketToUsername;
+    RoomManager *m_roomManager; // NOWE
+    QMap<QTcpSocket *, QString> m_socketToUsername;
 };
 #endif // MAINWINDOW_H
